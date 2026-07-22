@@ -11,11 +11,12 @@
   <header class="top">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
-      <span>Motion&nbsp;Converter</span>
+      <span class="brand-name">Motion Converter</span>
     </div>
     <div class="top-right">
-      <span class="engine-chip" id="engine-chip"><span class="dot"></span><span id="engine-label">Loading engine…</span></span>
-      <span class="badge">100% local · nothing uploaded</span>
+      <span class="pill engine-chip" id="engine-chip"><span class="dot"></span><span id="engine-label">Loading engine…</span></span>
+      <span class="pill muted">100% local · nothing uploaded</span>
+      <button class="btn export" id="export-btn" disabled>Export</button>
     </div>
   </header>
 
@@ -30,7 +31,9 @@
       <h2><span class="step">1</span> Input</h2>
       <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop a motion file">
         <div class="dz-inner">
-          <div class="dz-icon" aria-hidden="true">⤓</div>
+          <div class="dz-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
+          </div>
           <p class="dz-title">Drop a motion file here</p>
           <p class="dz-sub">or click to browse — MOV · MP4 · WebM · MKV · AVI · GIF · animated WebP/PNG · Lottie&nbsp;JSON</p>
         </div>
@@ -40,23 +43,28 @@
       <div class="preview hidden" id="input-preview"></div>
       <p class="preview-note hidden" id="input-note"></p>
       <dl class="meta hidden" id="input-meta"></dl>
-      <button class="btn ghost hidden" id="change-file">Choose a different file</button>
+      <button class="btn block ghost hidden" id="change-file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
+        Choose a different file
+      </button>
     </section>
 
     <!-- CONTROLS -->
-    <section class="panel controls" id="controls-panel">
+    <section class="panel" id="controls-panel">
       <h2><span class="step">2</span> Convert to</h2>
       <div class="formats" id="formats" role="radiogroup" aria-label="Output format"></div>
 
       <div class="option hidden" id="fps-option">
         <label for="fps-input">Frame rate <span class="hint" id="fps-hint"></span></label>
-        <input type="number" id="fps-input" min="1" max="120" step="1" value="30" />
+        <div class="fps-wrap">
+          <input type="number" id="fps-input" min="1" max="120" step="1" value="30" />
+          <span class="fps-suffix">fps</span>
+        </div>
       </div>
       <p class="option-note hidden" id="format-note"></p>
 
-      <button class="btn primary" id="convert-btn" disabled>Convert&nbsp;→</button>
-
       <div class="progress hidden" id="progress">
+        <p class="progress-title">Converting…</p>
         <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
         <p class="progress-label" id="progress-label"></p>
       </div>
@@ -73,10 +81,21 @@
     <section class="panel" id="output-panel">
       <h2><span class="step">3</span> Output</h2>
       <div class="preview empty" id="output-preview">
-        <p class="empty-hint">Your converted file will preview here</p>
+        <div class="empty-inner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+          <p class="empty-hint">Your converted file<br>will preview here</p>
+        </div>
       </div>
-      <dl class="meta hidden" id="output-meta"></dl>
-      <a class="btn primary hidden" id="download-btn" download>⬇ Download</a>
+
+      <div class="details" id="output-details">
+        <p class="details-title">Output details</p>
+        <dl class="meta rows" id="output-meta"></dl>
+      </div>
+
+      <a class="btn block download" id="download-btn" download aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span id="download-label">Download</span>
+      </a>
     </section>
   </main>
 

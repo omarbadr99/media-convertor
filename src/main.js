@@ -8,15 +8,34 @@ import {
 import { isLottieJSON, lottieToFrames } from './lottie-io.js';
 
 // ---------------------------------------------------------------------------
+// Inline line icons (24x24, currentColor stroke)
+// ---------------------------------------------------------------------------
+
+const svg = (paths) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
+const ICONS = {
+  file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+  size: svg('<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/>'),
+  resolution: svg('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/>'),
+  film: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>'),
+  clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  loop: svg('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/>'),
+  braces: svg('<path d="M8 4a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2"/><path d="M16 4a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2"/>'),
+  image: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>'),
+  check: svg('<path d="M20 6L9 17l-5-5"/>'),
+};
+
+// ---------------------------------------------------------------------------
 // Format catalog
 // ---------------------------------------------------------------------------
 
 const FORMATS = [
-  { id: 'gif', label: 'GIF', desc: 'universal, loops everywhere', ext: 'gif', mime: 'image/gif' },
-  { id: 'mp4', label: 'MP4', desc: 'H.264 · near-lossless CRF 12', ext: 'mp4', mime: 'video/mp4' },
-  { id: 'webm', label: 'WebM', desc: 'VP8 · supports transparency', ext: 'webm', mime: 'video/webm' },
-  { id: 'lottie', label: 'Lottie JSON', desc: 'frame sequence, plays in lottie players', ext: 'json', mime: 'application/json' },
-  { id: 'png', label: 'PNG frames', desc: 'every frame, lossless, zipped', ext: 'zip', mime: 'application/zip' },
+  { id: 'gif', label: 'GIF', desc: 'universal, loops everywhere', ext: 'gif', mime: 'image/gif', icon: ICONS.loop },
+  { id: 'mp4', label: 'MP4', desc: 'H.264 · near-lossless CRF 12', ext: 'mp4', mime: 'video/mp4', icon: ICONS.film },
+  { id: 'webm', label: 'WebM', desc: 'VP8 · supports transparency', ext: 'webm', mime: 'video/webm', icon: ICONS.film },
+  { id: 'lottie', label: 'Lottie JSON', desc: 'frame sequence, plays in Lottie players', ext: 'json', mime: 'application/json', icon: ICONS.braces },
+  { id: 'png', label: 'PNG frames', desc: 'every frame, lossless, zipped', ext: 'zip', mime: 'application/zip', icon: ICONS.image },
 ];
 
 const ALPHA_INPUTS = new Set(['gif', 'webp', 'png', 'apng', 'json']);
@@ -26,29 +45,32 @@ const ALPHA_INPUTS = new Set(['gif', 'webp', 'png', 'apng', 'json']);
 // ---------------------------------------------------------------------------
 
 const state = {
-  file: null,          // the uploaded File
+  file: null,
   kind: null,          // 'video' | 'image' | 'lottie'
-  lottieData: null,    // parsed JSON when kind === 'lottie'
+  lottieData: null,
   meta: {},            // width/height/fps/duration
   format: 'gif',
   busy: false,
   outputURL: null,
+  outputStatus: 'idle', // 'idle' | 'converting' | 'ready' | 'error'
+  outputSize: null,
   lottiePlayers: { input: null, output: null },
 };
 
 const $ = (id) => document.getElementById(id);
 const els = {
   engineChip: $('engine-chip'), engineLabel: $('engine-label'),
+  exportBtn: $('export-btn'),
   dropzone: $('dropzone'), fileInput: $('file-input'),
   inputPreview: $('input-preview'), inputNote: $('input-note'),
   inputMeta: $('input-meta'), changeFile: $('change-file'),
   formats: $('formats'), fpsOption: $('fps-option'), fpsInput: $('fps-input'),
   fpsHint: $('fps-hint'), formatNote: $('format-note'),
-  convertBtn: $('convert-btn'),
   progress: $('progress'), progressBar: $('progress-bar'), progressLabel: $('progress-label'),
   errorBox: $('error-box'),
   logOutput: $('log-output'),
-  outputPreview: $('output-preview'), outputMeta: $('output-meta'), downloadBtn: $('download-btn'),
+  outputPreview: $('output-preview'), outputMeta: $('output-meta'),
+  downloadBtn: $('download-btn'), downloadLabel: $('download-label'),
 };
 
 // ---------------------------------------------------------------------------
@@ -68,7 +90,7 @@ loadEngine().then(() => {
   engineReady = true;
   els.engineChip.classList.add('ready');
   els.engineLabel.textContent = 'Engine ready';
-  refreshConvertButton();
+  refreshExportButton();
 }).catch((err) => {
   els.engineChip.classList.add('error');
   els.engineLabel.textContent = 'Engine failed to load';
@@ -86,7 +108,10 @@ for (const fmt of FORMATS) {
   btn.role = 'radio';
   btn.dataset.format = fmt.id;
   btn.setAttribute('aria-checked', String(fmt.id === state.format));
-  btn.innerHTML = `<span>${fmt.label}</span><small>${fmt.desc}</small>`;
+  btn.innerHTML =
+    `<span class="chip-ico">${fmt.icon}</span>` +
+    `<span class="chip-text"><span class="chip-title">${fmt.label}</span><span class="chip-desc">${fmt.desc}</span></span>` +
+    `<span class="chip-check">${ICONS.check}</span>`;
   btn.addEventListener('click', () => selectFormat(fmt.id));
   els.formats.appendChild(btn);
 }
@@ -109,6 +134,7 @@ function selectFormat(id) {
       'Raster footage becomes an image-sequence Lottie: every frame is embedded as a full-resolution PNG, ' +
       'so files get large for long clips. Lower the frame rate to shrink it.';
   }
+  renderOutputDetails();
 }
 selectFormat('gif');
 
@@ -132,7 +158,6 @@ for (const evt of ['dragover', 'dragleave', 'drop']) {
     if (evt === 'drop' && e.dataTransfer?.files?.[0]) acceptFile(e.dataTransfer.files[0]);
   });
 }
-// Allow dropping anywhere on the page once a file is loaded.
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => {
   e.preventDefault();
@@ -153,7 +178,7 @@ async function acceptFile(file) {
     if (!isLottieJSON(text)) {
       showError('That JSON file does not look like a Lottie animation (missing layers/fr/op/w/h).');
       state.file = null;
-      refreshConvertButton();
+      refreshExportButton();
       return;
     }
     state.kind = 'lottie';
@@ -171,27 +196,18 @@ async function acceptFile(file) {
   }
 
   renderInputPreview();
-  renderMeta(els.inputMeta, {
-    File: file.name,
-    Size: formatBytes(file.size),
-    ...metaFields(state.meta),
-  });
+  renderInputMeta();
   els.inputMeta.classList.remove('hidden');
   els.changeFile.classList.remove('hidden');
-  selectFormat(state.format); // refresh fps hint
-  refreshConvertButton();
+  selectFormat(state.format);
+  refreshExportButton();
 
-  // Probe raster/video inputs with ffmpeg for exact dimensions & fps.
   if (state.kind !== 'lottie') {
     try {
       await loadEngine();
       const meta = await probeFile(file);
       state.meta = { ...state.meta, ...meta };
-      renderMeta(els.inputMeta, {
-        File: file.name,
-        Size: formatBytes(file.size),
-        ...metaFields(state.meta),
-      });
+      renderInputMeta();
       selectFormat(state.format);
     } catch { /* probe is best-effort */ }
   }
@@ -225,7 +241,7 @@ function renderInputPreview() {
     video.playsInline = true;
     video.addEventListener('error', () => {
       els.inputNote.textContent =
-        'Your browser can\'t play this codec (common for ProRes/HEVC .mov files) — the converter can still read it. Hit Convert.';
+        'Your browser can\'t play this codec (common for ProRes/HEVC .mov files) — the converter can still read it. Hit Export.';
       els.inputNote.classList.remove('hidden');
     });
     els.inputPreview.appendChild(video);
@@ -233,13 +249,13 @@ function renderInputPreview() {
 }
 
 // ---------------------------------------------------------------------------
-// Conversion
+// Conversion — triggered by the header Export button
 // ---------------------------------------------------------------------------
 
-els.convertBtn.addEventListener('click', convert);
+els.exportBtn.addEventListener('click', convert);
 
-function refreshConvertButton() {
-  els.convertBtn.disabled = !(state.file && engineReady && !state.busy);
+function refreshExportButton() {
+  els.exportBtn.disabled = !(state.file && engineReady && !state.busy);
 }
 
 let progressMode = 'idle';
@@ -268,14 +284,15 @@ async function convert() {
   clearError();
   resetOutput();
   state.busy = true;
-  refreshConvertButton();
-  els.convertBtn.textContent = 'Converting…';
+  state.outputStatus = 'converting';
+  refreshExportButton();
+  els.exportBtn.textContent = 'Converting…';
+  renderOutputDetails();
 
   try {
     const fmt = FORMATS.find((f) => f.id === state.format);
     const isLottieIn = state.kind === 'lottie';
 
-    // Lottie in → Lottie out is a passthrough.
     if (isLottieIn && fmt.id === 'lottie') {
       const bytes = new TextEncoder().encode(JSON.stringify(state.lottieData));
       finishOutput({ data: bytes, ext: 'json', mime: 'application/json' }, fmt);
@@ -284,7 +301,6 @@ async function convert() {
 
     setProgress('Preparing input…');
 
-    // Build the ffmpeg input source.
     let source;
     if (isLottieIn) {
       const rendered = await lottieToFrames(state.lottieData, (done, total) => {
@@ -311,7 +327,6 @@ async function convert() {
       setProgress('Zipping frames…');
       const entries = {};
       names.forEach((name, i) => { entries[`frames/${name}`] = frames[i]; });
-      // PNGs are already compressed; store them for speed.
       const zipped = zipSync(entries, { level: 0 });
       result = { data: zipped, ext: 'zip', mime: 'application/zip', frameCount: frames.length, firstFrame: frames[0] };
     } else if (fmt.id === 'lottie') {
@@ -324,13 +339,15 @@ async function convert() {
     finishOutput(result, fmt);
   } catch (err) {
     console.error(err);
+    state.outputStatus = 'error';
     showError(String(err?.message || err) || `Conversion failed.\n\n${lastLogLines()}`);
+    renderOutputDetails();
   } finally {
     progressMode = 'idle';
     state.busy = false;
-    els.convertBtn.textContent = 'Convert →';
+    els.exportBtn.textContent = 'Export';
     els.progress.classList.add('hidden');
-    refreshConvertButton();
+    refreshExportButton();
   }
 }
 
@@ -345,6 +362,8 @@ function finishOutput(result, fmt) {
   const blob = new Blob([result.data], { type: result.mime });
   if (state.outputURL) URL.revokeObjectURL(state.outputURL);
   state.outputURL = URL.createObjectURL(blob);
+  state.outputSize = blob.size;
+  state.outputStatus = 'ready';
 
   els.outputPreview.classList.remove('empty');
   els.outputPreview.innerHTML = '';
@@ -378,25 +397,80 @@ function finishOutput(result, fmt) {
   const baseName = (state.file.name.replace(/\.[^.]*$/, '') || 'converted');
   els.downloadBtn.href = state.outputURL;
   els.downloadBtn.download = `${baseName}.${result.ext}`;
-  els.downloadBtn.textContent = `⬇ Download ${fmt.label} (${formatBytes(blob.size)})`;
-  els.downloadBtn.classList.remove('hidden');
+  els.downloadBtn.setAttribute('aria-disabled', 'false');
+  els.downloadLabel.textContent = `Download ${fmt.label} · ${formatBytes(blob.size)}`;
 
-  renderMeta(els.outputMeta, {
-    Format: fmt.label,
-    Size: formatBytes(blob.size),
-    ...(result.frameCount ? { Frames: String(result.frameCount) } : {}),
-    ...(result.width ? { Resolution: `${result.width}×${result.height}` } : {}),
-  });
-  els.outputMeta.classList.remove('hidden');
+  renderOutputDetails();
 }
 
 function resetOutput() {
   destroyLottie('output');
   if (state.outputURL) { URL.revokeObjectURL(state.outputURL); state.outputURL = null; }
+  state.outputSize = null;
+  if (state.outputStatus === 'ready') state.outputStatus = 'idle';
   els.outputPreview.classList.add('empty');
-  els.outputPreview.innerHTML = '<p class="empty-hint">Your converted file will preview here</p>';
-  els.outputMeta.classList.add('hidden');
-  els.downloadBtn.classList.add('hidden');
+  els.outputPreview.innerHTML =
+    '<div class="empty-inner">' +
+    ICONS.file +
+    '<p class="empty-hint">Your converted file<br>will preview here</p></div>';
+  els.downloadBtn.setAttribute('aria-disabled', 'true');
+  els.downloadBtn.removeAttribute('href');
+  els.downloadLabel.textContent = 'Download';
+  renderOutputDetails();
+}
+
+// Prevent navigation while the download button is disabled.
+els.downloadBtn.addEventListener('click', (e) => {
+  if (els.downloadBtn.getAttribute('aria-disabled') === 'true') e.preventDefault();
+});
+
+// ---------------------------------------------------------------------------
+// Meta / details rendering
+// ---------------------------------------------------------------------------
+
+function row(iconKey, label, valueHTML) {
+  const key = iconKey
+    ? `<span class="row-key"><span class="row-ico">${ICONS[iconKey]}</span>${label}</span>`
+    : `<span class="row-key">${label}</span>`;
+  return `<div class="row">${key}<span class="row-val">${valueHTML}</span></div>`;
+}
+
+function renderInputMeta() {
+  const m = state.meta;
+  let html = '';
+  html += row('file', 'File', escapeHTML(state.file.name));
+  html += row('size', 'Size', formatBytes(state.file.size));
+  if (m.width) html += row('resolution', 'Resolution', `${m.width} × ${m.height}`);
+  if (m.fps) html += row('film', 'Frame rate', `${m.fps} fps`);
+  if (m.duration) html += row('clock', 'Duration', `${m.duration.toFixed(2)} s`);
+  els.inputMeta.innerHTML = html;
+}
+
+function renderOutputDetails() {
+  const fmt = FORMATS.find((f) => f.id === state.format);
+  const m = state.meta;
+
+  const statusMap = {
+    idle: { cls: '', text: state.file ? 'Ready to export' : 'Waiting for a file' },
+    converting: { cls: 'converting', text: 'Converting' },
+    ready: { cls: 'ready', text: 'Ready' },
+    error: { cls: 'error', text: 'Failed' },
+  };
+  const st = statusMap[state.outputStatus] || statusMap.idle;
+  const statusVal = `<span class="status-dot ${st.cls}"></span>${st.text}`;
+
+  let html = '';
+  html += row(null, 'Status', `<span class="${state.outputStatus === 'converting' ? 'accent' : ''}">${statusVal}</span>`);
+  html += row(null, 'Format', fmt ? fmt.label : '—');
+  if (state.format === 'lottie') {
+    const fps = clampFps(parseFloat(els.fpsInput.value) || (m.fps || 30));
+    html += row(null, 'Frame rate', `${fps} fps`);
+  } else if (m.fps) {
+    html += row(null, 'Frame rate', `${m.fps} fps`);
+  }
+  html += row(null, 'Resolution', m.width ? `${m.width} × ${m.height}` : '—');
+  html += row(null, 'Estimated size', state.outputSize != null ? formatBytes(state.outputSize) : '—');
+  els.outputMeta.innerHTML = html;
 }
 
 // ---------------------------------------------------------------------------
@@ -424,33 +498,17 @@ function destroyLottie(slot) {
   }
 }
 
-function metaFields(meta) {
-  const out = {};
-  if (meta.width) out.Resolution = `${meta.width}×${meta.height}`;
-  if (meta.fps) out['Frame rate'] = `${meta.fps} fps`;
-  if (meta.duration) out.Duration = `${meta.duration.toFixed(2)} s`;
-  return out;
-}
-
-function renderMeta(dl, fields) {
-  dl.innerHTML = '';
-  for (const [label, value] of Object.entries(fields)) {
-    const div = document.createElement('div');
-    const dt = document.createElement('dt');
-    dt.textContent = label;
-    const dd = document.createElement('dd');
-    dd.textContent = value;
-    dd.title = value;
-    div.append(dt, dd);
-    dl.appendChild(div);
-  }
-}
-
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
 
 function showError(message) {
@@ -462,6 +520,9 @@ function clearError() {
   els.errorBox.classList.add('hidden');
   els.errorBox.textContent = '';
 }
+
+// Initial paint of the output details card.
+renderOutputDetails();
 
 // Exposed for automated testing.
 window.__mc = { state, loadEngine, acceptFile, convert, selectFormat };
